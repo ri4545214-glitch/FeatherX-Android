@@ -22,25 +22,29 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      
-      - name: Accept Android SDK licenses
-        shell: bash
-        run: |
-          SDKMANAGER=$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | head -n 1)
-          if [ -z "$SDKMANAGER" ]; then
-            echo "sdkmanager not found"
-            exit 1
-          fi
-          yes | "$SDKMANAGER" --licenses
+      - name: Setup Android SDK and accept licenses
+        uses: android-actions/setup-android@v4
+        with:
+          accept-android-sdk-licenses: true
+          log-accepted-android-sdk-licenses: false
+          packages: ''
 
       - name: Install Android SDK packages
-        shell: bash
         run: |
-          SDKMANAGER=$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | head -n 1)
-          "$SDKMANAGER" "platforms;android-35" "build-tools;35.0.0"
+          sdkmanager "platforms;android-35" "build-tools;35.0.0"
 
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          gradle-version: '8.11.1'
 
-      - name: Build Android APK
+      - name: Extract FeatherX source
+        run: |
+          unzip -q FeatherX-Android-Starter-v2.zip
+          cp -a FeatherX/. .
+          rm -rf FeatherX
+
+      - name: Build FeatherX APK
         run: gradle --no-daemon :app:assembleDebug
 
       - name: Upload APK
@@ -50,4 +54,3 @@ jobs:
           path: app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
           retention-days: 14
-          
