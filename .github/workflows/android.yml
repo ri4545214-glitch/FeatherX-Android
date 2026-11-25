@@ -16,6 +16,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
 
+      - name: Extract FeatherX source ZIP
+        run: |
+          unzip -q FeatherX-Full-Source-Fixed.zip -d .
+          echo "Files extracted:"
+          find . -name settings.gradle.kts
+
       - name: Install Java 17
         uses: actions/setup-java@v6
         with:
@@ -24,11 +30,12 @@ jobs:
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v4
-        with:
-          accept-android-sdk-licenses: true
-          packages: ''
+          with:
+            accept-android-sdk-licenses: true
+            log-accepted-android-sdk-licenses: false
+            packages: ''
 
-      - name: Install SDK packages
+      - name: Install Android SDK packages
         run: |
           sdkmanager "platforms;android-35" "build-tools;35.0.0"
 
@@ -40,24 +47,20 @@ jobs:
       - name: Find FeatherX project
         shell: bash
         run: |
-          if [ -f settings.gradle.kts ]; then
-            PROJECT_DIR="."
-          elif [ -f FeatherX/settings.gradle.kts ]; then
-            PROJECT_DIR="FeatherX"
-          else
-            echo "ERROR: Gradle settings file not found!"
-            find . -maxdepth 4 -name settings.gradle.kts
+          PROJECT_FILE=$(find . -type f -name settings.gradle.kts | head -n 1)
+
+          if [ -z "$PROJECT_FILE" ]; then
+            echo "ERROR: settings.gradle.kts not found!"
             exit 1
           fi
 
+          PROJECT_DIR=$(dirname "$PROJECT_FILE")
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
           echo "Found project at: $PROJECT_DIR"
 
       - name: Build FeatherX APK
         run: |
-          gradle --no-daemon \
-            -p "$PROJECT_DIR" \
-            :app:assembleDebug
+          gradle --no-daemon -p "$PROJECT_DIR" :app:assembleDebug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
@@ -66,4 +69,3 @@ jobs:
           path: '**/app/build/outputs/apk/debug/*.apk'
           if-no-files-found: error
           retention-days: 14
-          
