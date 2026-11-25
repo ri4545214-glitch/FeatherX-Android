@@ -22,7 +22,7 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Setup Android SDK and accept licenses
+      - name: Setup Android SDK
         uses: android-actions/setup-android@v4
         with:
           accept-android-sdk-licenses: true
@@ -37,12 +37,6 @@ jobs:
         uses: gradle/actions/setup-gradle@v6
         with:
           gradle-version: '8.11.1'
-
-      - name: Extract FeatherX source
-        run: |
-          unzip -q FeatherX-Android-Starter-v2.zip
-          cp -a FeatherX/. .
-          rm -rf FeatherX
 
       - name: Build FeatherX APK
         run: gradle --no-daemon :app:assembleDebug
