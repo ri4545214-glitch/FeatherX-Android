@@ -26,10 +26,9 @@ jobs:
         uses: android-actions/setup-android@v4
         with:
           accept-android-sdk-licenses: true
-          log-accepted-android-sdk-licenses: false
           packages: ''
 
-      - name: Install Android SDK packages
+      - name: Install SDK packages
         run: |
           sdkmanager "platforms;android-35" "build-tools;35.0.0"
 
@@ -38,13 +37,33 @@ jobs:
         with:
           gradle-version: '8.11.1'
 
+      - name: Find FeatherX project
+        shell: bash
+        run: |
+          if [ -f settings.gradle.kts ]; then
+            PROJECT_DIR="."
+          elif [ -f FeatherX/settings.gradle.kts ]; then
+            PROJECT_DIR="FeatherX"
+          else
+            echo "ERROR: Gradle settings file not found!"
+            find . -maxdepth 4 -name settings.gradle.kts
+            exit 1
+          fi
+
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+          echo "Found project at: $PROJECT_DIR"
+
       - name: Build FeatherX APK
-        run: gradle --no-daemon :app:assembleDebug
+        run: |
+          gradle --no-daemon \
+            -p "$PROJECT_DIR" \
+            :app:assembleDebug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: FeatherX-Android-APK
-          path: app/build/outputs/apk/debug/*.apk
+          path: '**/app/build/outputs/apk/debug/*.apk'
           if-no-files-found: error
           retention-days: 14
+          
