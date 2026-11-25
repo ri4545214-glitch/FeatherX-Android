@@ -1,67 +1,74 @@
-
-name: FeatherX Android APK Builder
+name: FeatherX Android APK
 
 on:
-  push:
   workflow_dispatch:
-
-permissions:
-  contents: read
+  push:
+    branches: [main, master]
+    paths:
+      - '*.zip'
+      - '.github/workflows/**'
 
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
-      - name: Extract FeatherX source ZIP
+      - name: Find and extract source ZIP
+        shell: bash
         run: |
-          unzip -q FeatherX-Full-Source-Fixed.zip -d .
-          echo "Files extracted:"
-          find . -name settings.gradle.kts
+          set -euo pipefail
+          ZIP_FILE="$(find . -maxdepth 1 -type f -iname '*.zip' ! -name 'FeatherX-ZIP-Builder-Setup.zip' | head -n 1)"
+          if [ -z "$ZIP_FILE" ]; then
+            echo "No source ZIP found in the repository root."
+            exit 1
+          fi
+          echo "Using source archive: $ZIP_FILE"
+          mkdir -p build-source
+          unzip -q "$ZIP_FILE" -d build-source
 
-      - name: Install Java 17
-        uses: actions/setup-java@v6
+          # Handle archives that contain one enclosing project folder.
+          if [ ! -f build-source/settings.gradle.kts ]; then
+            SETTINGS_FILE="$(find build-source -mindepth 2 -maxdepth 4 -name settings.gradle.kts -print -quit)"
+            if [ -z "$SETTINGS_FILE" ]; then
+              echo "settings.gradle.kts was not found inside the ZIP."
+              find build-source -maxdepth 4 -type f | sort | head -200
+              exit 1
+            fi
+            PROJECT_DIR="$(dirname "$SETTINGS_FILE")"
+          else
+            PROJECT_DIR="build-source"
+          fi
+
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+          test -f "$PROJECT_DIR/app/build.gradle.kts"
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
 
-       - name: Setup Android SDK
-        uses: android-actions/setup-android@v4
-        with:
-          accept-android-sdk-licenses: true
-          log-accepted-android-sdk-licenses: false
-          packages: ''
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
 
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v6
-        with:
-          gradle-version: '8.11.1'
-
-      - name: Find FeatherX project
-        shell: bash
+      - name: Install Android SDK packages
         run: |
-          PROJECT_FILE=$(find . -type f -name settings.gradle.kts | head -n 1)
+          yes | sdkmanager --licenses || true
+          sdkmanager "platforms;android-35" "build-tools;35.0.0"
 
-          if [ -z "$PROJECT_FILE" ]; then
-            echo "ERROR: settings.gradle.kts not found!"
-            exit 1
-          fi
+      - name: Set up Gradle 8.11.1
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: 8.11.1
 
-          PROJECT_DIR=$(dirname "$PROJECT_FILE")
-          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
-          echo "Found project at: $PROJECT_DIR"
-
-      - name: Build FeatherX APK
-        run: |
-          gradle --no-daemon -p "$PROJECT_DIR" :app:assembleDebug
+      - name: Build debug APK
+        run: gradle --no-daemon --stacktrace -p "$PROJECT_DIR" :app:assembleDebug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: FeatherX-Android-APK
-          path: '**/app/build/outputs/apk/debug/*.apk'
+          name: FeatherX-debug-apk
+          path: ${{ env.PROJECT_DIR }}/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
-          retention-days: 14
